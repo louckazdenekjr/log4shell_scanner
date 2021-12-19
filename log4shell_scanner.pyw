@@ -34,7 +34,8 @@ class mainWindow(tkinter.Tk):
         self.statustext="Not started"
         self.foreground='white'
         self.width = 20
-        self.disclaimer = "Zdenek Loucka, SMO DT IT / 2021, GNU General Public License v3.0, no warranty"
+        self.disclaimer = "Zdenek Loucka, SMO DT IT / 2021"
+        self.disclaimer2 = "GNU General Public License v3.0, no warranty"
         self.geometry("1000x565") # 800x450 * 1.25
         self.resizable(0, 0)
         self.title('Log4Shell jar scanner')
@@ -47,6 +48,7 @@ class mainWindow(tkinter.Tk):
         self.log1 = tkinter.Listbox(width=int(7.5*self.width), height=int(1.25*self.width), background=self.activebackground, foreground=self.foreground, selectbackground=self.selectbackground,activestyle="none")
         self.label1 = tkinter.Label(text=self.statustext, background=self.background, foreground=self.foreground)
         self.label2 = tkinter.Label(text=self.disclaimer, background=self.background, foreground=self.foreground)
+        self.label3 = tkinter.Label(text=self.disclaimer2, background=self.background, foreground=self.foreground)
         self.spacer1.pack()
         self.button1.pack()
         self.spacer2.pack()
@@ -54,6 +56,7 @@ class mainWindow(tkinter.Tk):
         self.spacer3.pack()
         self.label1.pack()
         self.label2.pack()
+        self.label3.pack()
         self.log1.bind('<Double-Button>', self.logClickHandler)
         self.log1.insert(1, "Welcome, detected system drives: " + str(self.drives))
         self.log1.focus_set()

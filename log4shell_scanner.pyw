@@ -86,8 +86,9 @@ class mainWindow(tkinter.Tk):
                 animCount=animCount+1
             else:
                 animCount=0
-            if self.animating == False:
-                break
+            with self.lock:
+                if self.animating == False:
+                    break
 
     def subSearchFunction(self, drive):
         expression = re.compile("log4j-.+\.jar$")
@@ -120,9 +121,10 @@ class mainWindow(tkinter.Tk):
                 self.log1.insert(count, i)
         else:
             self.log1.insert(1, "No results, all good!")
-        self.animating = False
         self.animateThread.join()
-        self.label1.config(text = "Done, double click a result to open directory")
+        with self.lock:
+            self.animating = False
+            self.label1.config(text = "Done, double click a result to open directory")
 
     def findJars(self):
         if threading.active_count() < 2:

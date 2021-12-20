@@ -1,6 +1,6 @@
 # Zdenek Loucka, SMO DT IT / 2021
 # Log4Shell vulnerability scanner
-# Version 2.2
+# Version 2.21
 # GNU General Public License v3.0
 
 
@@ -121,9 +121,10 @@ class mainWindow(tkinter.Tk):
                 self.log1.insert(count, i)
         else:
             self.log1.insert(1, "No results, all good!")
-        self.animateThread.join()
         with self.lock:
             self.animating = False
+        self.animateThread.join()
+        with self.lock:
             self.label1.config(text = "Done, double click a result to open directory")
 
     def findJars(self):

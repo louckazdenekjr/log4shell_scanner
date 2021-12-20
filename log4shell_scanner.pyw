@@ -64,7 +64,7 @@ class mainWindow(tkinter.Tk):
         self.lock = threading.RLock()
         self.results=[]
         self.resultsPath=["blank",]
-        self.animating = True
+        self.hasRun=False
         self.mainloop()
 
     def getdrives(self):
@@ -101,6 +101,7 @@ class mainWindow(tkinter.Tk):
                         self.resultsPath.append((str(root)+"\\"))
 
     def searchfunction(self):
+        self.animating = True
         self.animateThread = threading.Thread(target=self.animateSearch)
         self.animateThread.start()
         driveCounter=0
@@ -126,9 +127,14 @@ class mainWindow(tkinter.Tk):
         self.animateThread.join()
         with self.lock:
             self.label1.config(text = "Done, double click a result to open directory")
+        self.hasRun=True
 
     def findJars(self):
         if threading.active_count() < 2:
+            if self.hasRun:
+                self.log1.delete(0, tkinter.END)
+                self.results=[]
+                self.resultsPath=[]
             self.searchThread = threading.Thread(target=self.searchfunction)
             self.searchThread.start()
 

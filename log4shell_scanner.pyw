@@ -208,7 +208,6 @@ class mainWindow(tkinter.Tk):
             else:
                 return "unknown"
         except Exception as exc:
-            #print(exc)
             return "error"
 
 if __name__ == "__main__":

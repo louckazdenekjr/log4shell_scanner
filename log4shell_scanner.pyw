@@ -12,6 +12,7 @@ import subprocess
 import tkinter
 import string
 import zipfile
+import multiprocessing
 from ctypes import windll
 from sys import platform
 
@@ -58,28 +59,39 @@ class mainWindow(tkinter.Tk):
         self.log1.focus_set()
         self.lift()
         self.resultsLock = threading.RLock()
-        self.animLock = threading.RLock()
+        self.animationLock = threading.RLock()
         self.results=[]
         self.hasRun=False
         self.mainloop()
 
+    def findJars(self):
+        if threading.active_count() < 2:
+            if self.hasRun:
+                self.log1.delete(0, tkinter.END)
+                with self.resultsLock:
+                    self.results=[]
+                self.searchThread.join()
+            self.searchThread = threading.Thread(target=self.searchfunction)                
+            self.searchThread.daemon = True                
+            self.searchThread.start()
 
     def animateSearch(self):
         animList = ["Searching",". Searching .",". . Searching . .",". . . Searching . . ."]
         animIndex=0
         while True:
-            with self.animLock:
+            with self.animationLock:
                 self.label1.config(text = animList[animIndex])
             time.sleep(1)
             if animIndex < 3:
                 animIndex=animIndex+1
             else:
                 animIndex=0
-            with self.animLock:
+            with self.animationLock:
                 if self.animating == False:
                     break
 
-    def subSearchFunction(self, target):
+    @staticmethod
+    def subSearchFunction(target, queue):
         expression = re.compile("log4j-.+\.jar$")
         with os.scandir(str(target)) as scandirObject:
             for entry in scandirObject:
@@ -87,58 +99,62 @@ class mainWindow(tkinter.Tk):
                     if entry.is_file():
                         result = expression.search(entry.name)
                         if result:
-                            with self.resultsLock:
-                                self.results.append(str(os.path.abspath(entry.path)))
+                            queue.put(str(os.path.abspath(entry.path)))
                     elif entry.is_dir():
-                        self.subSearchFunction(os.path.abspath(entry.path))
+                        mainWindow.subSearchFunction(os.path.abspath(entry.path), queue)
                 except:
                     pass
 
     def searchfunction(self):
-        with self.animLock:
+        with self.animationLock:
             self.animating = True
         self.animateThread = threading.Thread(target=self.animateSearch)
         self.animateThread.start()
         driveIndex=0
-        driveThreadDict={}
+        driveProcessDictionary={}
+        driveProcessQueues={}
+        driveProcessResults={}
         for drive in self.drives:
-            driveThreadDict[driveIndex] = threading.Thread(target=self.subSearchFunction, args=(str(drive)+":\\",))
-            driveThreadDict[driveIndex].start()
+            driveProcessQueues[driveIndex] = multiprocessing.Queue()
+            driveProcessDictionary[driveIndex] = multiprocessing.Process(target=mainWindow.subSearchFunction, args=(str(drive)+":\\", driveProcessQueues[driveIndex]))
+            driveProcessDictionary[driveIndex].start()
             driveIndex=driveIndex+1
         driveIndex=0
         for drive in self.drives:
-            driveThreadDict[driveIndex].join()
+            driveProcessDictionary[driveIndex].join()
+            driveProcessResults[driveIndex]=[]
+            while True:
+                try:
+                    msg = driveProcessQueues[driveIndex].get_nowait()
+                    driveProcessResults[driveIndex].append(msg)
+                except:
+                    break
+            with self.resultsLock:
+                self.results = self.results + driveProcessResults[driveIndex]
             driveIndex=driveIndex+1
-        count=1
-        if len(self.results) > 0:
-            for i in self.results:
-                i = (str(count)+": "+str(self.getVersion(i))+": "+i)
-                count=count+1
-                self.log1.insert(count, i)
-        else:
-            self.log1.insert(1, "No results, all good!")
-        with self.animLock:
+        resultIndex=1
+        with self.resultsLock:
+            if len(self.results) > 0:
+                for result in self.results:
+                    result = (str(resultIndex)+": "+str(self.getVersion(result))+": "+result)
+                    resultIndex=resultIndex+1
+                    self.log1.insert(resultIndex, result)
+            else:
+                self.log1.insert(1, "No results, all good!")
+        with self.animationLock:
             self.animating = False
         self.animateThread.join()
-        with self.animLock:
+        with self.animationLock:
             self.label1.config(text = "Done, double click a result to open directory")
         if self.hasRun == False:
-            self.results.insert(0, "blank")
+            with self.resultsLock:
+                self.results.insert(0, "blank")
             self.hasRun=True
-
-    def findJars(self):
-        if threading.active_count() < 2:
-            if self.hasRun:
-                self.log1.delete(0, tkinter.END)
-                self.results=[]
-                self.searchThread.join()
-            self.searchThread = threading.Thread(target=self.searchfunction)                
-            self.searchThread.daemon = True                
-            self.searchThread.start()
 
     def logClickHandler(self, arg):
         selection = self.log1.curselection()[0]
-        path = os.path.dirname(self.results[selection])
+        with self.resultsLock:
+            path = os.path.dirname(self.results[selection])
         if path != 0:
             subprocess.Popen(f'explorer "{path}"')
 
@@ -207,7 +223,7 @@ class mainWindow(tkinter.Tk):
                 return version
             else:
                 return "unknown"
-        except Exception as exc:
+        except:
             return "error"
 
 if __name__ == "__main__":

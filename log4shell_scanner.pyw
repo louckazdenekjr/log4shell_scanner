@@ -60,18 +60,9 @@ class mainWindow(tkinter.Tk):
         self.resultsLock = threading.RLock()
         self.animLock = threading.RLock()
         self.results=[]
-        self.resultsPath=["blank",]
         self.hasRun=False
         self.mainloop()
 
-    def getDrives(self):
-        drives = []
-        bitmask = windll.kernel32.GetLogicalDrives()
-        for letter in string.ascii_uppercase:
-            if bitmask & 1:
-                drives.append(letter)
-            bitmask >>= 1
-        return drives
 
     def animateSearch(self):
         animList = ["Searching",". Searching .",". . Searching . .",". . . Searching . . ."]
@@ -88,15 +79,20 @@ class mainWindow(tkinter.Tk):
                 if self.animating == False:
                     break
 
-    def subSearchFunction(self, drive):
+    def subSearchFunction(self, target):
         expression = re.compile("log4j-.+\.jar$")
-        for root,dir,files in os.walk(str(drive)+":\\"):
-            for file in files:
-                result = expression.search(file)
-                if result:
-                    with self.resultsLock:
-                        self.results.append(str(root)+"\\"+str(file))
-                        self.resultsPath.append((str(root)+"\\"))
+        with os.scandir(str(target)) as scandirObject:
+            for entry in scandirObject:
+                try:
+                    if entry.is_file():
+                        result = expression.search(entry.name)
+                        if result:
+                            with self.resultsLock:
+                                self.results.append(str(os.path.abspath(entry.path)))
+                    elif entry.is_dir():
+                        self.subSearchFunction(os.path.abspath(entry.path))
+                except:
+                    pass
 
     def searchfunction(self):
         with self.animLock:
@@ -106,7 +102,7 @@ class mainWindow(tkinter.Tk):
         driveIndex=0
         driveThreadDict={}
         for drive in self.drives:
-            driveThreadDict[driveIndex] = threading.Thread(target=self.subSearchFunction, args=(drive,))
+            driveThreadDict[driveIndex] = threading.Thread(target=self.subSearchFunction, args=(str(drive)+":\\",))
             driveThreadDict[driveIndex].start()
             driveIndex=driveIndex+1
         driveIndex=0
@@ -126,14 +122,15 @@ class mainWindow(tkinter.Tk):
         self.animateThread.join()
         with self.animLock:
             self.label1.config(text = "Done, double click a result to open directory")
-        self.hasRun=True
+        if self.hasRun == False:
+            self.results.insert(0, "blank")
+            self.hasRun=True
 
     def findJars(self):
         if threading.active_count() < 2:
             if self.hasRun:
                 self.log1.delete(0, tkinter.END)
                 self.results=[]
-                self.resultsPath=[]
                 self.searchThread.join()
             self.searchThread = threading.Thread(target=self.searchfunction)                
             self.searchThread.daemon = True                
@@ -141,7 +138,7 @@ class mainWindow(tkinter.Tk):
 
     def logClickHandler(self, arg):
         selection = self.log1.curselection()[0]
-        path = self.resultsPath[selection]
+        path = os.path.dirname(self.results[selection])
         if path != 0:
             subprocess.Popen(f'explorer "{path}"')
 
@@ -157,9 +154,19 @@ class mainWindow(tkinter.Tk):
             pass
 
     @staticmethod
+    def getDrives():
+        drives = []
+        bitmask = windll.kernel32.GetLogicalDrives()
+        for letter in string.ascii_uppercase:
+            if bitmask & 1:
+                drives.append(letter)
+            bitmask >>= 1
+        return drives
+
+    @staticmethod
     def rgbtohex(r,g,b):
         return f'#{r:02x}{g:02x}{b:02x}'
-    
+
     @staticmethod
     def getVersion(source):
         def disassembleManifest(manifest):
@@ -194,12 +201,14 @@ class mainWindow(tkinter.Tk):
                     elif filename == 'pom.properties': 
                         if disassemblePomfile(file):
                             version = disassemblePomfile(file)
+                    elif nested_expression.findall(filename):
+                        pass
             if "version" in locals():
                 return version
             else:
                 return "unknown"
         except Exception as exc:
-            print(exc)
+            #print(exc)
             return "error"
 
 if __name__ == "__main__":

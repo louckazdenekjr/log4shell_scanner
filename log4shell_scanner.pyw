@@ -9,7 +9,6 @@ import sys
 import time
 import threading
 import subprocess
-import pathlib
 import tkinter
 import string
 import zipfile
@@ -249,4 +248,5 @@ class mainWindow(tkinter.Tk):
             return "error"
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     appWindow = mainWindow()

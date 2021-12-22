@@ -170,8 +170,11 @@ class mainWindow(tkinter.Tk):
 
     def logClickHandler(self, arg):
         selection = self.log1.curselection()[0]
-        with self.resultsLock:
-            path = os.path.dirname(self.results[selection])
+        if self.hasRun == True:
+            with self.resultsLock:
+                path = os.path.dirname(self.results[selection])
+        else:
+            path = ""
         if path != 0:
             subprocess.Popen(f'explorer "{path}"')
 
@@ -242,8 +245,7 @@ class mainWindow(tkinter.Tk):
                 return version
             else:
                 return "unknown"
-        except Exception as exc:
-            print(exc)
+        except:
             return "error"
 
 if __name__ == "__main__":

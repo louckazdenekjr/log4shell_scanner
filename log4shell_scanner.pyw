@@ -9,12 +9,29 @@ import sys
 import time
 import threading
 import subprocess
+import pathlib
 import tkinter
 import string
 import zipfile
 import multiprocessing
 from ctypes import windll
 from sys import platform
+
+
+
+import functools
+def timeit(func):
+    @functools.wraps(func)
+    def new_func(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        elapsed_time = time.time() - start_time
+        print('function [{}] finished in {} ms'.format(
+            func.__name__, int(elapsed_time * 1_000)))
+        return result
+    return new_func
+
+
 
 if platform == "win32":
     pass
@@ -59,7 +76,7 @@ class mainWindow(tkinter.Tk):
         self.log1.focus_set()
         self.lift()
         self.resultsLock = threading.RLock()
-        self.animationLock = threading.RLock()
+        self.animLock = threading.RLock()
         self.results=[]
         self.hasRun=False
         self.mainloop()
@@ -77,16 +94,15 @@ class mainWindow(tkinter.Tk):
 
     def animateSearch(self):
         animList = ["Searching",". Searching .",". . Searching . .",". . . Searching . . ."]
-        animIndex=0
         while True:
-            with self.animationLock:
-                self.label1.config(text = animList[animIndex])
-            time.sleep(1)
-            if animIndex < 3:
-                animIndex=animIndex+1
-            else:
-                animIndex=0
-            with self.animationLock:
+            for animIndex, anim in enumerate(animList):
+                with self.animLock:
+                    self.label1.config(text = animList[animIndex])
+                time.sleep(1)
+                with self.animLock:
+                    if self.animating == False:
+                        break
+            with self.animLock:
                 if self.animating == False:
                     break
 
@@ -105,46 +121,47 @@ class mainWindow(tkinter.Tk):
                 except:
                     pass
 
+    @staticmethod
+    def consumeQueue(queue):
+        queueResults=[]
+        while True:
+            try:
+                queueResults.append(queue.get_nowait())
+            except:
+                break      
+        return queueResults
+        
+    @timeit
     def searchfunction(self):
-        with self.animationLock:
+        with self.animLock:
             self.animating = True
         self.animateThread = threading.Thread(target=self.animateSearch)
         self.animateThread.start()
-        driveIndex=0
         driveProcessDictionary={}
         driveProcessQueues={}
         driveProcessResults={}
-        for drive in self.drives:
+        for driveIndex, drive in enumerate(self.drives):
             driveProcessQueues[driveIndex] = multiprocessing.Queue()
             driveProcessDictionary[driveIndex] = multiprocessing.Process(target=mainWindow.subSearchFunction, args=(str(drive)+":\\", driveProcessQueues[driveIndex]))
+            driveProcessDictionary[driveIndex].daemon = True
             driveProcessDictionary[driveIndex].start()
-            driveIndex=driveIndex+1
-        driveIndex=0
-        for drive in self.drives:
+        for driveIndex, drive in enumerate(self.drives):
             driveProcessDictionary[driveIndex].join()
-            driveProcessResults[driveIndex]=[]
-            while True:
-                try:
-                    msg = driveProcessQueues[driveIndex].get_nowait()
-                    driveProcessResults[driveIndex].append(msg)
-                except:
-                    break
+            driveProcessResults[driveIndex] = mainWindow.consumeQueue(driveProcessQueues[driveIndex])
             with self.resultsLock:
                 self.results = self.results + driveProcessResults[driveIndex]
-            driveIndex=driveIndex+1
-        resultIndex=1
         with self.resultsLock:
             if len(self.results) > 0:
-                for result in self.results:
+                for resultIndex, result in enumerate(self.results):
+                    resultIndex = resultIndex+1
                     result = (str(resultIndex)+": "+str(self.getVersion(result))+": "+result)
-                    resultIndex=resultIndex+1
                     self.log1.insert(resultIndex, result)
             else:
                 self.log1.insert(1, "No results, all good!")
-        with self.animationLock:
+        with self.animLock:
             self.animating = False
         self.animateThread.join()
-        with self.animationLock:
+        with self.animLock:
             self.label1.config(text = "Done, double click a result to open directory")
         if self.hasRun == False:
             with self.resultsLock:
@@ -207,23 +224,26 @@ class mainWindow(tkinter.Tk):
                 return version
         try:
             nested_expression = re.compile("\.jar$")
+            isNested = False
             with zipfile.ZipFile(source, 'r') as ZipFile:
                 listFileNames = ZipFile.namelist()
                 for file in listFileNames:
                     filename = os.path.basename(file)
-                    if filename == 'MANIFEST.MF': 
+                    if nested_expression.findall(filename):
+                        version = ">>>NESTED JARFILES! INSPECT MANUALLY<<<"
+                        isNested = True
+                    elif filename == 'MANIFEST.MF' and isNested == False: 
                         if disassembleManifest(file):
                             version = disassembleManifest(file)
-                    elif filename == 'pom.properties': 
+                    elif filename == 'pom.properties' and isNested == False:
                         if disassemblePomfile(file):
                             version = disassemblePomfile(file)
-                    elif nested_expression.findall(filename):
-                        pass
             if "version" in locals():
                 return version
             else:
                 return "unknown"
-        except:
+        except Exception as exc:
+            print(exc)
             return "error"
 
 if __name__ == "__main__":

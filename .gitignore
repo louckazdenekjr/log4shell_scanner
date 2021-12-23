@@ -3,5 +3,4 @@ venv/
 .idea/
 __pycache__/
 icon.ico
-build.ps1
 log4shell_scanner.spec

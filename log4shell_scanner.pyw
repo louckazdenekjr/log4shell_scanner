@@ -13,8 +13,8 @@ import tkinter
 import zipfile
 import threading
 import subprocess
-from ctypes import windll
 from sys import platform
+from ctypes import windll
 
 
 
@@ -106,13 +106,17 @@ class mainWindow(tkinter.Tk):
                 with self.resultsLock:
                     self.results = []
                 self.searchThread.join()
-            self.searchThread = threading.Thread(target=self.searchFunction)
+            self.searchThread = threading.Thread(name = "searchThread", 
+                                                 target=self.searchFunction)
             self.searchThread.daemon = True
             self.searchThread.start()
             self.isScanning = True
 
     def animateSearch(self):
-        animList = ["Searching", ". Searching .", ". . Searching . .", ". . . Searching . . ."]
+        animList = ["Searching", 
+                    ". Searching .", 
+                    ". . Searching . .", 
+                    ". . . Searching . . ."]
         while True:
             for animIndex, anim in enumerate(animList):
                 with self.animLock:
@@ -174,8 +178,9 @@ class mainWindow(tkinter.Tk):
     def searchFunction(self):
         with self.animLock:
             self.animating = True
-        self.animateThread = threading.Thread(target=self.animateSearch)
-        self.animateThread.start()
+        self.animThread = threading.Thread(name = "animThread", 
+                                           target=self.animateSearch)
+        self.animThread.start()
         driveProcessDictionary = {}
         driveProcessQueues = {}
         driveProcessResults = {}
@@ -207,7 +212,7 @@ class mainWindow(tkinter.Tk):
                 self.log1.insert(1, "No results, all good!")
         with self.animLock:
             self.animating = False
-        self.animateThread.join()
+        self.animThread.join()
         with self.animLock:
             self.label1.config(text="Done, double click a result to open directory")
         if self.hasRun == False:

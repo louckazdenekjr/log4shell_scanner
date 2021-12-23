@@ -1,0 +1,6 @@
+.idea/
+bak/
+venv/
+build.ps1
+icon.ico
+log4shell_scanner.spec

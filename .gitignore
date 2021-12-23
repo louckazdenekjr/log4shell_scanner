@@ -1,6 +1,7 @@
-.idea/
 bak/
 venv/
-build.ps1
+.idea/
+__pycache__/
 icon.ico
+build.ps1
 log4shell_scanner.spec

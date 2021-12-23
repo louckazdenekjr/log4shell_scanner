@@ -4,3 +4,4 @@ venv/
 __pycache__/
 icon.ico
 log4shell_scanner.spec
+test

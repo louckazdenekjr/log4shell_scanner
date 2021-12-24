@@ -105,16 +105,16 @@ class mainWindow(tkinter.Tk):
                 with self.resultsLock:
                     self.results = []
                 self.searchThread.join()
-            self.searchThread = threading.Thread(name = "searchThread", 
+            self.searchThread = threading.Thread(name = "searchThread",
                                                  target=self.searchFunction)
             self.searchThread.daemon = True
             self.searchThread.start()
             self.isScanning = True
 
     def animateSearch(self):
-        animList = ["Searching", 
-                    ". Searching .", 
-                    ". . Searching . .", 
+        animList = ["Searching",
+                    ". Searching .",
+                    ". . Searching . .",
                     ". . . Searching . . ."]
         while True:
             for animIndex, anim in enumerate(animList):
@@ -135,21 +135,47 @@ class mainWindow(tkinter.Tk):
             return True
 
     @staticmethod
-    def hasNestedJars(target):
+    def hasNestedL4J(target, isNestedJar=False, nestedJarName="NULL", nestedJarBase="NULL"):
+        expression_L4J = re.compile("log4j-.+\.jar$")
+        expression_anyJar = re.compile("\.jar$")
         try:
-            target = os.path.abspath(target)
-            expression_anyJar = re.compile("log4j-.+\.jar$")
-            with zipfile.ZipFile(target, 'r') as ZipFile:
-                listFileNames = ZipFile.namelist()
-                for file in listFileNames:
-                    filename = os.path.basename(file)
-                    if expression_anyJar.findall(filename):
-                        return True
-        except:
+            if not isNestedJar:
+                target = os.path.abspath(target)
+                with zipfile.ZipFile(target, 'r') as ZipFile:
+                    listFileNames = ZipFile.namelist()
+                    for file in listFileNames:
+                        filename = os.path.basename(file)
+                        if expression_L4J.findall(filename):
+                            return True
+                        elif expression_anyJar.findall(filename):
+                            if mainWindow.hasNestedL4J(target, True, filename):
+                                return True
+                        else:
+                            return False
+            else:
+                print(target)
+                with zipfile.ZipFile(target, 'r') as ZipFile:
+                    listFileNames = ZipFile.namelist()
+                    for file in listFileNames:
+                        filename = os.path.basename(file)
+                        if filename == nestedJarName:
+                            with zipfile.ZipFile(file, 'r') as nestedZipFile:
+                                nestedListFileNames = nestedZipFile.namelist()
+                                for nestedFile in nestedListFileNames:
+                                    nestedFilename = os.path.basename(nestedFile)
+                                    if expression_L4J.findall(nestedFilename):
+                                        return True
+                                    elif expression_anyJar.findall(nestedFilename):
+                                        if mainWindow.hasNestedL4J(target, True, nestedFilename):
+                                            return True
+                                    else:
+                                        return False
+        except Exception as exc:
+            print(exc)
             pass
 
     @staticmethod
-    def subSearchFunction(target, dataQueue):
+    def subSearchFunction(target, thread_queue):
         try:
             expression_anyJar = re.compile("\.jar$")
             with os.scandir(str(target)) as scandirObject:
@@ -157,18 +183,18 @@ class mainWindow(tkinter.Tk):
                     if entry.is_file():
                         isJarfile = expression_anyJar.search(entry.name)
                         if isJarfile:
-                            dataQueue.put(str(os.path.abspath(entry.path)))
+                            thread_queue.put(str(os.path.abspath(entry.path)))
                     elif entry.is_dir():
-                        mainWindow.subSearchFunction(os.path.abspath(entry.path), dataQueue)
+                        mainWindow.subSearchFunction(os.path.abspath(entry.path), thread_queue)
         except:
             pass
 
     @staticmethod
-    def consumeQueue(queue):
+    def consumeQueue(thread_queue):
         queueResults = []
         while True:
             try:
-                queueResults.append(queue.get_nowait())
+                queueResults.append(thread_queue.get_nowait())
             except:
                 break
         return queueResults
@@ -181,23 +207,28 @@ class mainWindow(tkinter.Tk):
                                            target=self.animateSearch)
         self.animThread.start()
         driveProcessDictionary = {}
-        driveProcessQueues = {}
-        driveProcessResults = {}
-        for driveIndex, drive in enumerate(self.drives):
-            driveProcessQueues[driveIndex] = queue.Queue()
-            driveProcessDictionary[driveIndex] = threading.Thread(name=f'driveThread{driveIndex}',
-                                                                  target=mainWindow.subSearchFunction,
-                                                                  args=(str(drive) + ":\\", driveProcessQueues[driveIndex]))
-            driveProcessDictionary[driveIndex].daemon = True
-            driveProcessDictionary[driveIndex].start()
-        for driveIndex, drive in enumerate(self.drives):
-            driveProcessDictionary[driveIndex].join()
-            driveProcessResults[driveIndex] = mainWindow.consumeQueue(driveProcessQueues[driveIndex])
+        drive_thread_queues = {}
+        drive_thread_results = {}
+        for drive_index, drive in enumerate(self.drives):
+            if platform == "win32":
+                drive = str(drive) + ":\\"
+            drive_thread_queues[drive_index] = queue.Queue()
+            driveProcessDictionary[drive_index] = threading.Thread(name=f'driveThread{drive_index}',
+                                                                   target=mainWindow.subSearchFunction,
+                                                                   args=(drive, drive_thread_queues[drive_index]))
+            driveProcessDictionary[drive_index].daemon = True
+            driveProcessDictionary[drive_index].start()
+        for drive_index, drive in enumerate(self.drives):
+            driveProcessDictionary[drive_index].join()
+            drive_thread_results[drive_index] = mainWindow.consumeQueue(drive_thread_queues[drive_index])
             newResults = []
-            for result in driveProcessResults[driveIndex]:
-                if mainWindow.isL4J(result) == True or mainWindow.hasNestedJars(result) == True:
+            for result in drive_thread_results[drive_index]:
+                if mainWindow.isL4J(result):
+                    newResults.append(result)
+                elif mainWindow.hasNestedL4J(result):
                     newResults.append(result)
             with self.resultsLock:
+                print(newResults)
                 self.results = self.results + newResults
         with self.resultsLock:
             if len(self.results) > 0:
@@ -205,8 +236,8 @@ class mainWindow(tkinter.Tk):
                     resultIndex = resultIndex + 1
                     if mainWindow.isL4J(result):
                         result = (str(resultIndex) + ": " + str(mainWindow.getVersion(result)) + ": " + result)
-                    elif mainWindow.hasNestedJars(result):
-                        result = (str(resultIndex) + ": " + "Nested Jarfiles" + ": " + result)
+                    elif mainWindow.hasNestedL4J(result):
+                        result = (str(resultIndex) + ": " + "Nested L4J" + ": " + result)
                     self.log1.insert(resultIndex, result)
             else:
                 self.log1.insert(1, "No results, all good!")
@@ -245,11 +276,14 @@ class mainWindow(tkinter.Tk):
     @staticmethod
     def getDrives():
         drives = []
-        bitmask = windll.kernel32.GetLogicalDrives()
-        for letter in string.ascii_uppercase:
-            if bitmask & 1:
-                drives.append(letter)
-            bitmask >>= 1
+        if platform == "win32":
+            bitmask = windll.kernel32.GetLogicalDrives()
+            for letter in string.ascii_uppercase:
+                if bitmask & 1:
+                    drives.append(letter)
+                bitmask >>= 1
+        else:
+            drives.append("/")
         return drives
 
     @staticmethod

@@ -28,7 +28,6 @@ def timeit(func):
         print('function [{}] finished in {} ms'.format(
             func.__name__, int(elapsed_time * 1_000)))
         return result
-
     return new_func
 
 
@@ -150,7 +149,7 @@ class mainWindow(tkinter.Tk):
             pass
 
     @staticmethod
-    def subSearchFunction(target, queue):
+    def subSearchFunction(target, dataQueue):
         try:
             expression_anyJar = re.compile("\.jar$")
             with os.scandir(str(target)) as scandirObject:
@@ -158,9 +157,9 @@ class mainWindow(tkinter.Tk):
                     if entry.is_file():
                         isJarfile = expression_anyJar.search(entry.name)
                         if isJarfile:
-                            queue.put(str(os.path.abspath(entry.path)))
+                            dataQueue.put(str(os.path.abspath(entry.path)))
                     elif entry.is_dir():
-                        mainWindow.subSearchFunction(os.path.abspath(entry.path), queue)
+                        mainWindow.subSearchFunction(os.path.abspath(entry.path), dataQueue)
         except Exception:
             pass
 
@@ -178,7 +177,7 @@ class mainWindow(tkinter.Tk):
     def searchFunction(self):
         with self.animLock:
             self.animating = True
-        self.animThread = threading.Thread(name = "animThread", 
+        self.animThread = threading.Thread(name="animThread",
                                            target=self.animateSearch)
         self.animThread.start()
         driveProcessDictionary = {}
@@ -186,8 +185,9 @@ class mainWindow(tkinter.Tk):
         driveProcessResults = {}
         for driveIndex, drive in enumerate(self.drives):
             driveProcessQueues[driveIndex] = queue.Queue()
-            driveProcessDictionary[driveIndex] = threading.Thread(target=mainWindow.subSearchFunction, args=(
-                str(drive) + ":\\", driveProcessQueues[driveIndex]))
+            driveProcessDictionary[driveIndex] = threading.Thread(name=f'driveThread{driveIndex}',
+                                                                  target=mainWindow.subSearchFunction,
+                                                                  args=(str(drive) + ":\\", driveProcessQueues[driveIndex]))
             driveProcessDictionary[driveIndex].daemon = True
             driveProcessDictionary[driveIndex].start()
         for driveIndex, drive in enumerate(self.drives):

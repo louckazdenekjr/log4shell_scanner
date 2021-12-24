@@ -160,7 +160,7 @@ class mainWindow(tkinter.Tk):
                             dataQueue.put(str(os.path.abspath(entry.path)))
                     elif entry.is_dir():
                         mainWindow.subSearchFunction(os.path.abspath(entry.path), dataQueue)
-        except Exception:
+        except:
             pass
 
     @staticmethod
@@ -293,7 +293,7 @@ class mainWindow(tkinter.Tk):
                 return version
             else:
                 return "unknown"
-        except Exception as exc:
+        except:
             return "error"
 
 if __name__ == "__main__":

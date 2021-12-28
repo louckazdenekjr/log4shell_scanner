@@ -1,6 +1,7 @@
 bak/
 venv/
 .idea/
+.vscode/
 __pycache__/
 icon.ico
 log4shell_scanner.spec

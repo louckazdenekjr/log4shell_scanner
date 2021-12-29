@@ -40,7 +40,7 @@ class mainWindow(tkinter.Tk):
     def __init__(self):
         # inherit super
         super().__init__()
-        
+
         # init icon and define colors, add window settings
         self.setIcon()
         self.background = self.rgbToHex(30, 30, 30)
@@ -55,7 +55,7 @@ class mainWindow(tkinter.Tk):
         self.foreground = 'white'
         self.resizable(False, False)
         self.configure(background=self.background)
-        
+
         # define shared class variables
         self.drives = self.getDrives()
         self.resultsLock = threading.RLock()
@@ -63,7 +63,7 @@ class mainWindow(tkinter.Tk):
         self.results = []
         self.hasRun = False
         self.isScanning = False
-        
+
         # create widgets
         self.spacerDict = {}
         for spacer in range(3):
@@ -90,7 +90,7 @@ class mainWindow(tkinter.Tk):
         self.label3 = tkinter.Label(text=self.disclaimer2,
                                     background=self.background,
                                     foreground=self.foreground)
-        
+
         # assign widgets to layout
         self.spacerDict[0].pack()
         self.button1.pack()
@@ -100,12 +100,12 @@ class mainWindow(tkinter.Tk):
         self.label1.pack()
         self.label2.pack()
         self.label3.pack()
-        
+
         #bind functionality and init log
         self.log1.bind('<Double-Button>', self.logClickHandler)
         self.log1.insert(
             1, "Welcome, detected system drives: " + str(self.drives))
-        
+
         # focus window and start event loop
         self.log1.focus_set()
         self.lift()
@@ -209,8 +209,7 @@ class mainWindow(tkinter.Tk):
                     elif entry.is_dir():
                         mainWindow.subSearchFunction(
                             os.path.abspath(entry.path), thread_queue)
-        except Exception as exc:
-            print(str(exc)+" while: "+str(target))
+        except:
             pass # skip inaccessible directories
 
     # static class method to consume thread data queue
@@ -227,25 +226,27 @@ class mainWindow(tkinter.Tk):
     # main class method for executing search tasks
     @timeit
     def searchFunction(self):
+        # acquire animation lock and start animation thread
         with self.animLock:
             self.animating = True
         self.animThread = threading.Thread(name="animThread",
                                            target=self.animateSearch)
         self.animThread.start()
-        driveProcessDictionary = {}
+        # create and dispatch scanning threads
+        driveThreadDictionary = {}
         drive_thread_queues = {}
         drive_thread_results = {}
         for drive_index, drive in enumerate(self.drives):
             if platform == "win32":
                 drive = str(drive) + ":\\"
             drive_thread_queues[drive_index] = queue.Queue()
-            driveProcessDictionary[drive_index] = threading.Thread(name=f'driveThread{drive_index}',
+            driveThreadDictionary[drive_index] = threading.Thread(name=f'driveThread{drive_index}',
                                                                    target=mainWindow.subSearchFunction,
                                                                    args=(drive, drive_thread_queues[drive_index]))
-            driveProcessDictionary[drive_index].daemon = True
-            driveProcessDictionary[drive_index].start()
+            driveThreadDictionary[drive_index].daemon = True
+            driveThreadDictionary[drive_index].start()
         for drive_index, drive in enumerate(self.drives):
-            driveProcessDictionary[drive_index].join()
+            driveThreadDictionary[drive_index].join()
             drive_thread_results[drive_index] = mainWindow.consumeQueue(
                 drive_thread_queues[drive_index])
             newResults = []
@@ -256,7 +257,6 @@ class mainWindow(tkinter.Tk):
                 elif mainWindow.hasNestedL4J(result):
                     newResults.append(result)
             with self.resultsLock:
-                print(newResults)
                 self.results = self.results + newResults
         with self.resultsLock:
             if len(self.results) > 0:

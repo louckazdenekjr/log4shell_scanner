@@ -56,12 +56,12 @@ class mainWindow(tkinter.Tk):
         # define shared class variables
         self.drives = self.getDrives()
         self.resultsLock = threading.RLock()
-        self.animLock = threading.RLock()
+        self.animationLock = threading.RLock()
         self.results = []
         self.hasRun = False
         self.isScanning = False
 
-        # create widgets
+        # create widgets, create spacer pack spacerDict[x]
         self.spacerDict = {}
         for spacer in range(3):
             self.spacerDict[spacer] = tkinter.Label(background=self.background)
@@ -126,18 +126,18 @@ class mainWindow(tkinter.Tk):
 
     # class method to animate search
     def animateSearch(self):
-        animList = ["Searching",
-                    ". Searching .",
-                    ". . Searching . .",
-                    ". . . Searching . . ."]
+        animationList = ["Searching",
+                        ". Searching .",
+                        ". . Searching . .",
+                        ". . . Searching . . ."]
         while True:
-            for animIndex, anim in enumerate(animList):
-                with self.animLock:
-                    self.label1.config(text=animList[animIndex])
+            for animationIndex, anim in enumerate(animationList):
+                with self.animationLock:
+                    self.label1.config(text=animationList[animationIndex])
                     if not self.animating:
                         break
                 time.sleep(1)
-            with self.animLock:
+            with self.animationLock:
                 if not self.animating:
                     break
 
@@ -224,11 +224,12 @@ class mainWindow(tkinter.Tk):
     @timeit
     def searchFunction(self):
         # acquire animation lock and start animation thread
-        with self.animLock:
+        with self.animationLock:
             self.animating = True
-        self.animThread = threading.Thread(name="animThread",
-                                           target=self.animateSearch)
-        self.animThread.start()
+        self.animationThread = threading.Thread(name="animationThread",
+                                                target=self.animateSearch)
+        self.animationThread.start()
+        
         # create and dispatch scanning threads
         driveThreadDictionary = {}
         drive_thread_queues = {}
@@ -238,8 +239,8 @@ class mainWindow(tkinter.Tk):
                 drive = str(drive) + ":\\"
             drive_thread_queues[drive_index] = queue.Queue()
             driveThreadDictionary[drive_index] = threading.Thread(name=f'driveThread{drive_index}',
-                                                                   target=mainWindow.subSearchFunction,
-                                                                   args=(drive, drive_thread_queues[drive_index]))
+                                                                  target=mainWindow.subSearchFunction,
+                                                                  args=(drive, drive_thread_queues[drive_index]))
             driveThreadDictionary[drive_index].daemon = True
             driveThreadDictionary[drive_index].start()
         for drive_index, drive in enumerate(self.drives):
@@ -268,10 +269,10 @@ class mainWindow(tkinter.Tk):
                     self.log1.insert(resultIndex, result)
             else:
                 self.log1.insert(1, "No results, all good!")
-        with self.animLock:
+        with self.animationLock:
             self.animating = False
-        self.animThread.join()
-        with self.animLock:
+        self.animationThread.join()
+        with self.animationLock:
             self.label1.config(
                 text="Done, double click a result to open directory")
         if self.hasRun == False:

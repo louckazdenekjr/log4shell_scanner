@@ -26,7 +26,6 @@ def timeit(func):
         elapsed_time = time.time() - start_time
         print('function [{}] finished in {} ms'.format(func.__name__, int(elapsed_time * 1_000)))
         return result
-
     return new_func
 
 # currently only Windows is supported, exit if OS is not Windows

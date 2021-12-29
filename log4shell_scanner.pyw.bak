@@ -257,7 +257,6 @@ class mainWindow(tkinter.Tk):
                 elif mainWindow.hasNestedL4J(result):
                     newResults.append(result)
             with self.resultsLock:
-                print(newResults)
                 self.results = self.results + newResults
         with self.resultsLock:
             if len(self.results) > 0:

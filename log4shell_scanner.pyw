@@ -1,6 +1,6 @@
 # Zdenek Loucka, SMO DT IT / 2021
 # Log4Shell vulnerability scanner
-# Version 2.3
+# Version 2.4
 # GNU General Public License v3.0
 
 import re
@@ -16,6 +16,8 @@ import subprocess
 from sys import platform
 from ctypes import windll
 
+################################################################################
+
 # debug timer
 import functools
 def timeit(func):
@@ -27,6 +29,8 @@ def timeit(func):
         print('function [{}] finished in {} ms'.format(func.__name__, int(elapsed_time * 1_000)))
         return result
     return new_func
+
+################################################################################
 
 # currently only Windows is supported, exit if OS is not Windows
 if platform != "win32":
@@ -149,47 +153,52 @@ class mainWindow(tkinter.Tk):
         if len(result) > 0:
             return True
 
-    # static class method to check if a jar file has nested jar files
+    # static class method to check if a jar file has nested L4J files
     @staticmethod
-    def hasNestedL4J(target, isNestedJar=False, nestedJarName="NULL", nestedJarBase="NULL"):
+    def hasNestedL4J(target):
         # define local regular expressions
         expression_L4J = re.compile("log4j-.+\.jar$")
         expression_anyJar = re.compile("\.jar$")
         try:
-            if not isNestedJar: # is not nested jar
-                target = os.path.abspath(target)
-                with zipfile.ZipFile(target, 'r') as ZipFile:
-                    listFileNames = ZipFile.namelist()
-                    for file in listFileNames:
-                        filename = os.path.basename(file)
-                        if expression_L4J.findall(filename):
-                            return True
-                        elif expression_anyJar.findall(filename):
-                            if mainWindow.hasNestedL4J(target, True, filename):
-                                return True
-                        else:
-                            return False
-            else: # is nested jar
-                # TODO - prototyping recursive function, currently stuck at recursive arguments
-                with zipfile.ZipFile(target, 'r') as ZipFile:
-                    listFileNames = ZipFile.namelist()
-                    for file in listFileNames:
-                        filename = os.path.basename(file)
-                        if filename == nestedJarName:
-                            with zipfile.ZipFile(file, 'r') as nestedZipFile:
-                                nestedListFileNames = nestedZipFile.namelist()
-                                for nestedFile in nestedListFileNames:
-                                    nestedFilename = os.path.basename(
-                                        nestedFile)
-                                    if expression_L4J.findall(nestedFilename):
-                                        return True
-                                    elif expression_anyJar.findall(nestedFilename):
-                                        if mainWindow.hasNestedL4J(target, True, nestedFilename):
-                                            return True
-                                    else:
-                                        return False
+            target = os.path.abspath(target)
+            with zipfile.ZipFile(target, 'r') as ZipFile:
+                listFileNames = ZipFile.namelist()
+                for file in listFileNames:
+                    filename = os.path.basename(file)
+                    if expression_L4J.findall(filename):
+                        return True
+                    else:
+                        return False
         except:
-            pass # TODO
+            # skip BadZipFile
+            pass 
+
+    # static class method to check if a jar file has nested jar files
+    @staticmethod
+    def hasNestedJar(target):
+        expression_L4J = re.compile("log4j-.+\.jar$")
+        expression_anyJar = re.compile("\.jar$")
+        try:
+            with zipfile.ZipFile(target, 'r') as ZipFile:
+                listFileNames = ZipFile.namelist()
+                for file in listFileNames:
+                    filename = os.path.basename(file)
+                    if filename == nestedJarName:
+                        with zipfile.ZipFile(file, 'r') as nestedZipFile:
+                            nestedListFileNames = nestedZipFile.namelist()
+                            for nestedFile in nestedListFileNames:
+                                nestedFilename = os.path.basename(
+                                    nestedFile)
+                                if expression_L4J.findall(nestedFilename):
+                                    return True
+                                elif expression_anyJar.findall(nestedFilename):
+                                    if mainWindow.hasNestedL4J(target, True, nestedFilename):
+                                        return True
+                                else:
+                                    return False
+        except:
+            # skip BadZipFile 
+            pass
 
     # static class method to find all jar files
     @staticmethod
@@ -199,15 +208,16 @@ class mainWindow(tkinter.Tk):
             expression_anyJar = re.compile("\.jar$")
             with os.scandir(str(target)) as scandirObject:
                 for entry in scandirObject:
-                    if entry.is_file():
+                    if entry.is_file(follow_symlinks=False):
                         isJarfile = expression_anyJar.search(entry.name)
                         if isJarfile:
                             thread_queue.put(str(os.path.abspath(entry.path)))
-                    elif entry.is_dir():
+                    elif entry.is_dir(follow_symlinks=False):
                         mainWindow.subSearchFunction(
                             os.path.abspath(entry.path), thread_queue)
         except:
-            pass # skip inaccessible directories
+            # skip inaccessible directories
+            pass 
 
     # static class method to consume thread data queue
     @staticmethod
@@ -229,8 +239,8 @@ class mainWindow(tkinter.Tk):
         self.animationThread = threading.Thread(name="animationThread",
                                                 target=self.animateSearch)
         self.animationThread.start()
-        
-        # create and dispatch scanning thread per drive
+
+        # create and dispatch scanning thread per drive, get all jar files
         driveThreadDictionary = {}
         drive_thread_queues = {}
         drive_thread_results = {}
@@ -243,23 +253,25 @@ class mainWindow(tkinter.Tk):
                                                                   args=(drive, drive_thread_queues[drive_index]))
             driveThreadDictionary[drive_index].daemon = True
             driveThreadDictionary[drive_index].start()
-            
-        # wait for threads to finish, join them and get all local results
+
+        # wait for threads to finish, join them and get all respective local results
         for drive_index, drive in enumerate(self.drives):
             driveThreadDictionary[drive_index].join()
             drive_thread_results[drive_index] = mainWindow.consumeQueue(
                 drive_thread_queues[drive_index])
             newResults = []
-            
-            # append local results per drive to shared results if they match as L4J or nested jar 
+
+            # append local results per drive to shared results 
             for result in drive_thread_results[drive_index]:
+                # if they match as L4J
                 if mainWindow.isL4J(result):
                     newResults.append(result)
+                # or as nested jar 
                 elif mainWindow.hasNestedL4J(result):
                     newResults.append(result)
             with self.resultsLock:
                 self.results = self.results + newResults
-                
+
         # if we have any results, get versions of L4J and insert them to the log
         with self.resultsLock:
             if len(self.results) > 0:
@@ -270,11 +282,11 @@ class mainWindow(tkinter.Tk):
                                   str(mainWindow.getVersion(result)) + ": " + result)
                     elif mainWindow.hasNestedL4J(result):
                         result = (str(resultIndex) + ": " +
-                                  "Nested L4J" + ": " + result)
+                                  "Nested Jar" + ": " + result)
                     self.log1.insert(resultIndex, result)
             else:
                 self.log1.insert(1, "No results, all good!")
-                
+
         # stop animation
         with self.animationLock:
             self.animating = False
@@ -313,7 +325,7 @@ class mainWindow(tkinter.Tk):
         except:
             pass # don't crash while trying to set a missing icon
 
-    # static class method to get drives on Windows
+    # static class method to get drives on Windows, target root on linux/unix
     @staticmethod
     def getDrives():
         drives = []
@@ -348,7 +360,7 @@ class mainWindow(tkinter.Tk):
             if "version" in locals():
                 return version
                 
-        #submethod to check pom files
+        # submethod to check pom files
         def disassemblePomfile(pomfile):
             expression_maven = re.compile("version=(.+)")
             content = ZipFile.read(pomfile)

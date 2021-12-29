@@ -230,7 +230,7 @@ class mainWindow(tkinter.Tk):
                                                 target=self.animateSearch)
         self.animationThread.start()
         
-        # create and dispatch scanning threads
+        # create and dispatch scanning thread per drive
         driveThreadDictionary = {}
         drive_thread_queues = {}
         drive_thread_results = {}
@@ -243,12 +243,15 @@ class mainWindow(tkinter.Tk):
                                                                   args=(drive, drive_thread_queues[drive_index]))
             driveThreadDictionary[drive_index].daemon = True
             driveThreadDictionary[drive_index].start()
+            
+        # wait for threads to finish, join them and get all local results
         for drive_index, drive in enumerate(self.drives):
             driveThreadDictionary[drive_index].join()
             drive_thread_results[drive_index] = mainWindow.consumeQueue(
                 drive_thread_queues[drive_index])
             newResults = []
-            # TODO
+            
+            # append local results per drive to shared results if they match as L4J or nested jar 
             for result in drive_thread_results[drive_index]:
                 if mainWindow.isL4J(result):
                     newResults.append(result)
@@ -256,6 +259,8 @@ class mainWindow(tkinter.Tk):
                     newResults.append(result)
             with self.resultsLock:
                 self.results = self.results + newResults
+                
+        # if we have any results, get versions of L4J and insert them to the log
         with self.resultsLock:
             if len(self.results) > 0:
                 for resultIndex, result in enumerate(self.results):
@@ -269,13 +274,17 @@ class mainWindow(tkinter.Tk):
                     self.log1.insert(resultIndex, result)
             else:
                 self.log1.insert(1, "No results, all good!")
+                
+        # stop animation
         with self.animationLock:
             self.animating = False
         self.animationThread.join()
+        
+        # set status to done
         with self.animationLock:
-            self.label1.config(
-                text="Done, double click a result to open directory")
+            self.label1.config(text="Done, double click a result to open directory")
         if self.hasRun == False:
+            # offset for welcome message
             with self.resultsLock:
                 self.results.insert(0, "blank")
             self.hasRun = True
@@ -372,4 +381,4 @@ class mainWindow(tkinter.Tk):
 
 # start application
 if __name__ == "__main__":
-    appWindow = mainWindow()
+    appWindow = mainWindow() 

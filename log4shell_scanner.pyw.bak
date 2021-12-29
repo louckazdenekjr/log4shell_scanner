@@ -26,13 +26,10 @@ def timeit(func):
         elapsed_time = time.time() - start_time
         print('function [{}] finished in {} ms'.format(func.__name__, int(elapsed_time * 1_000)))
         return result
-
     return new_func
 
 # currently only Windows is supported, exit if OS is not Windows
-if platform == "win32":
-    pass
-else:
+if platform != "win32":
     quit()
 
 # define main window class
@@ -340,6 +337,7 @@ class mainWindow(tkinter.Tk):
                     version = str(result)
             if "version" in locals():
                 return version
+                
         #submethod to check pom files
         def disassemblePomfile(pomfile):
             expression_maven = re.compile("version=(.+)")
@@ -351,6 +349,7 @@ class mainWindow(tkinter.Tk):
                     version = str(result)
             if "version" in locals():
                 return version
+                
         # primary block
         try:
             with zipfile.ZipFile(target, 'r') as ZipFile:

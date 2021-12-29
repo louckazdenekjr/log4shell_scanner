@@ -29,9 +29,7 @@ def timeit(func):
     return new_func
 
 # currently only Windows is supported, exit if OS is not Windows
-if platform == "win32":
-    pass
-else:
+if platform != "win32":
     quit()
 
 # define main window class
@@ -231,6 +229,7 @@ class mainWindow(tkinter.Tk):
         self.animThread = threading.Thread(name="animThread",
                                            target=self.animateSearch)
         self.animThread.start()
+        
         # create and dispatch scanning threads
         driveThreadDictionary = {}
         drive_thread_queues = {}
@@ -339,6 +338,7 @@ class mainWindow(tkinter.Tk):
                     version = str(result)
             if "version" in locals():
                 return version
+                
         #submethod to check pom files
         def disassemblePomfile(pomfile):
             expression_maven = re.compile("version=(.+)")
@@ -350,6 +350,7 @@ class mainWindow(tkinter.Tk):
                     version = str(result)
             if "version" in locals():
                 return version
+                
         # primary block
         try:
             with zipfile.ZipFile(target, 'r') as ZipFile:

@@ -16,25 +16,13 @@ import subprocess
 from sys import platform
 from ctypes import windll
 
-################################################################################
-
-# debug timer
-import functools
-def timeit(func):
-    @functools.wraps(func)
-    def new_func(*args, **kwargs):
-        start_time = time.time()
-        result = func(*args, **kwargs)
-        elapsed_time = time.time() - start_time
-        print('function [{}] finished in {} ms'.format(func.__name__, int(elapsed_time * 1_000)))
-        return result
-    return new_func
-
-################################################################################
+#----------------------------------------
 
 # currently only Windows is supported, exit if OS is not Windows
 if platform != "win32":
     quit()
+
+#----------------------------------------
 
 # define main window class
 class mainWindow(tkinter.Tk):
@@ -65,32 +53,47 @@ class mainWindow(tkinter.Tk):
         self.hasRun = False
         self.isScanning = False
 
-        # create widgets, create spacer pack spacerDict[x]
+        # define widgets, create spacer pack spacerDict[x]
         self.spacerDict = {}
         for spacer in range(3):
-            self.spacerDict[spacer] = tkinter.Label(background=self.background)
-        self.button1 = tkinter.Button(text="Log4Shell jar scanner",
-                                      background=self.background,
-                                      foreground=self.foreground,
-                                      width=self.width,
-                                      activebackground=self.activebackground,
-                                      activeforeground=self.foreground,
-                                      command=self.findJars)
-        self.log1 = tkinter.Listbox(width=int(9 * self.width),
-                                    height=int(1.5 * self.width),
-                                    background=self.activebackground,
-                                    foreground=self.foreground,
-                                    selectbackground=self.selectbackground,
-                                    activestyle="none")
-        self.label1 = tkinter.Label(text=self.statustext,
-                                    background=self.background,
-                                    foreground=self.foreground)
-        self.label2 = tkinter.Label(text=self.disclaimer,
-                                    background=self.background,
-                                    foreground=self.foreground)
-        self.label3 = tkinter.Label(text=self.disclaimer2,
-                                    background=self.background,
-                                    foreground=self.foreground)
+            self.spacerDict[spacer] = tkinter.Label(background = self.background)
+            
+        self.button1 = tkinter.Button (
+            text                = "Log4Shell jar scanner",
+            background          = self.background,
+            foreground          = self.foreground,
+            width               = self.width,
+            activebackground    = self.activebackground,
+            activeforeground    = self.foreground,
+            command             = self.findJars
+        )
+        
+        self.log1 = tkinter.Listbox (
+            width               = int(9 * self.width),
+            height              = int(1.5 * self.width),
+            background          = self.activebackground,
+            foreground          = self.foreground,
+            selectbackground    = self.selectbackground,
+            activestyle         = "none"
+        )
+        
+        self.label1 = tkinter.Label(
+            text                = self.statustext,
+            background          = self.background,
+            foreground          = self.foreground
+        )
+        
+        self.label2 = tkinter.Label(
+            text                = self.disclaimer,
+            background          = self.background,
+            foreground          = self.foreground
+        )
+        
+        self.label3 = tkinter.Label(
+            text                = self.disclaimer2,
+            background          = self.background,
+            foreground          = self.foreground
+        )
 
         # assign widgets to layout
         self.spacerDict[0].pack()
@@ -103,9 +106,15 @@ class mainWindow(tkinter.Tk):
         self.label3.pack()
 
         #bind functionality and init log
-        self.log1.bind('<Double-Button>', self.logClickHandler)
-        self.log1.insert(
-            1, "Welcome, detected system drives: " + str(self.drives))
+        self.log1.bind(
+            '<Double-Button>', 
+            self.logClickHandler
+        )
+        
+        self.log1.insert (
+            1,
+            "Welcome, detected system drives: " + str(self.drives)
+        )
 
         # focus window and start event loop
         self.log1.focus_set()
@@ -122,8 +131,12 @@ class mainWindow(tkinter.Tk):
                 with self.resultsLock:
                     self.results = []
                 self.searchThread.join()
-            self.searchThread = threading.Thread(name="searchThread",
-                                                 target=self.searchFunction)
+                
+            self.searchThread = threading.Thread(
+                name    = "searchThread",
+                target  = self.searchFunction
+            )
+            
             self.searchThread.daemon = True
             self.searchThread.start()
             self.isScanning = True
@@ -197,7 +210,7 @@ class mainWindow(tkinter.Tk):
                                 else:
                                     return False
         except:
-            # skip BadZipFile 
+            # skip BadZipFile etc.
             pass
 
     # static class method to find all jar files
@@ -231,26 +244,34 @@ class mainWindow(tkinter.Tk):
         return queueResults
 
     # main class method for executing search tasks
-    @timeit
     def searchFunction(self):
         # acquire animation lock and start animation thread
         with self.animationLock:
             self.animating = True
-        self.animationThread = threading.Thread(name="animationThread",
-                                                target=self.animateSearch)
+            
+        self.animationThread = threading.Thread (
+            name = "animationThread",
+            target=self.animateSearch
+        )
+        
         self.animationThread.start()
 
         # create and dispatch scanning thread per drive, get all jar files
         driveThreadDictionary = {}
         drive_thread_queues = {}
         drive_thread_results = {}
+        
         for drive_index, drive in enumerate(self.drives):
             if platform == "win32":
                 drive = str(drive) + ":\\"
+                
             drive_thread_queues[drive_index] = queue.Queue()
-            driveThreadDictionary[drive_index] = threading.Thread(name=f'driveThread{drive_index}',
-                                                                  target=mainWindow.subSearchFunction,
-                                                                  args=(drive, drive_thread_queues[drive_index]))
+            driveThreadDictionary[drive_index] = threading.Thread (
+                name    = f'driveThread{drive_index}',
+                target  = mainWindow.subSearchFunction,
+                args    = (drive, drive_thread_queues[drive_index])
+            )
+                
             driveThreadDictionary[drive_index].daemon = True
             driveThreadDictionary[drive_index].start()
 
@@ -298,7 +319,11 @@ class mainWindow(tkinter.Tk):
         if self.hasRun == False:
             # offset for welcome message
             with self.resultsLock:
-                self.results.insert(0, "blank")
+                self.results.insert(
+                    0,
+                    "blank"
+                )
+                
             self.hasRun = True
             self.isScanning = False
 
@@ -390,6 +415,8 @@ class mainWindow(tkinter.Tk):
                 return "unknown"
         except:
             return "error"
+
+#----------------------------------------
 
 # start application
 if __name__ == "__main__":

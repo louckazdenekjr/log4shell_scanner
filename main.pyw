@@ -77,19 +77,19 @@ class mainWindow(tkinter.Tk):
             activestyle         = "none"
         )
         
-        self.label1 = tkinter.Label(
+        self.label1 = tkinter.Label (
             text                = self.statustext,
             background          = self.background,
             foreground          = self.foreground
         )
         
-        self.label2 = tkinter.Label(
+        self.label2 = tkinter.Label (
             text                = self.disclaimer,
             background          = self.background,
             foreground          = self.foreground
         )
         
-        self.label3 = tkinter.Label(
+        self.label3 = tkinter.Label (
             text                = self.disclaimer2,
             background          = self.background,
             foreground          = self.foreground
@@ -106,7 +106,7 @@ class mainWindow(tkinter.Tk):
         self.label3.pack()
 
         #bind functionality and init log
-        self.log1.bind(
+        self.log1.bind (
             '<Double-Button>', 
             self.logClickHandler
         )
@@ -319,7 +319,7 @@ class mainWindow(tkinter.Tk):
         if self.hasRun == False:
             # offset for welcome message
             with self.resultsLock:
-                self.results.insert(
+                self.results.insert (
                     0,
                     "blank"
                 )
